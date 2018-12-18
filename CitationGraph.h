@@ -11,6 +11,7 @@
 template <typename Publication>
 class CitationGraph {
   private:
+
     class Node {
       private:
         Publication value;
@@ -40,7 +41,6 @@ class CitationGraph {
           return value;
         }
 
-        
         std::vector<typename Publication::id_type> get_children() const {
           std::vector<typename Publication::id_type> vec;
           for (auto child : children) {
@@ -59,6 +59,8 @@ class CitationGraph {
     CitationGraph(typename Publication::id_type const &stem_id) {
 
     }
+
+    ~CitationGraph() {}
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
     // noexcept.
