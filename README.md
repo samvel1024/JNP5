@@ -13,7 +13,7 @@ Należy zaimplementować szablon klasy, która reprezentuje taki graf.
 
 template <class Publication> CitationGraph;
 
-Klasa Publication reprezentuje informacje o publikacji. Jej implementacja
+Klasa Publication.h reprezentuje informacje o publikacji. Jej implementacja
 zostanie dostarczona w stosownym czasie.
 
 Klasa CitationGraph powinna udostępniać następujący interfejs.
@@ -32,7 +32,7 @@ CitationGraph<P>& operator=(CitationGraph<P> &&other);
 ```
 ___
 Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
-wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
+wtedy, gdy metoda Publication.h::get_id jest noexcept. Zamiast pytajnika należy
 wpisać stosowne wyrażenie.
 ```c++
 Publication::id_type get_root_id() const noexcept(?);
@@ -90,13 +90,13 @@ void remove(Publication::id_type const &id);
 ```
 ___
 Zakładamy, że:
-* klasa Publication ma konstruktor przyjmujący argument typu
-  Publication::id_type;
-* klasa Publication ma metodę Publication::id_type get_id() const, która
+* klasa Publication.h ma konstruktor przyjmujący argument typu
+  Publication.h::id_type;
+* klasa Publication.h ma metodę Publication.h::id_type get_id() const, która
   dodatkowo może, ale nie musi być noexcept;
-* typ Publication::id_type ma konstruktor bezargumentowy, konstruktor
+* typ Publication.h::id_type ma konstruktor bezargumentowy, konstruktor
   kopiujący, konstruktor przenoszący i operatory przypisania;
-* wartości typu Publication::id_type tworzą porządek liniowy i można je
+* wartości typu Publication.h::id_type tworzą porządek liniowy i można je
   porównywać za pomocą operatorów ==, !=, <=, >=, <, >.
 
 Ponadto:

@@ -6,6 +6,14 @@
 #include <set>
 #include <memory>
 #include <map>
+#include <ostream>
+#include <iostream>
+
+#ifdef DEBUG
+#define LOG(x) x;
+#else
+#define LOG(x)
+#endif
 
 
 class PublicationAlreadyCreated : public std::exception {
@@ -27,20 +35,19 @@ class TriedToRemoveRoot : std::exception {
 };
 
 
-template<typename Container, typename Iterator>
+template<typename Container>
 class Transaction {
 private:
-    std::vector<Iterator> to_be_removed{};
-    Container &container;
+    std::vector<std::pair<Container &, typename Container::iterator>> to_be_removed{};
     bool failed = true;
 public:
 
-    explicit Transaction(Container &c) : container(c) {}
+    explicit Transaction() = default;
 
     virtual ~Transaction() {
         if (this->failed) {
             for (auto &i: to_be_removed) {
-                container.erase(i);
+                i.first.erase(i.second);
             }
         }
     }
@@ -49,10 +56,9 @@ public:
         failed = false;
     }
 
-    void add(Iterator &iter) {
-        to_be_removed.emplace_back(iter);
+    void add(Container &c, typename Container::iterator &iter) {
+        to_be_removed.emplace_back(c, iter);
     }
-
 
 };
 
@@ -60,19 +66,42 @@ template<typename Publication>
 class CitationGraph {
 private:
 
-    using id_type = typename Publication::id_type;
+    class Node;
 
+    template<typename T>
+    struct PtrComparator {
+        bool operator()(const T &lhs, const T &rhs) const {
+            return (*lhs) < (*rhs);
+        }
+    };
+
+    template<typename T>
+    struct WeakComparator {
+        PtrComparator<std::shared_ptr<T>> w;
+
+        bool operator()(const std::weak_ptr<T> &lhs, const std::weak_ptr<T> &rhs) const {
+            return w.operator()(lhs.lock(), rhs.lock());
+        }
+    };
+
+
+    using id_type = typename Publication::id_type;
+    using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
+    using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
 
     class Node {
+
+
     private:
         Publication value;
-        std::set<std::weak_ptr<Node>> parents;
-        std::set<std::shared_ptr<Node>> children;
+        ParentSet parents;
+        ChildSet children;
 
     public:
         Node(id_type id) : value(id), parents(), children() {}
 
-        auto add_parent(const std::shared_ptr<Node> &ptr) {
+
+        typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
             return parents.emplace(std::weak_ptr<Node>(ptr)).first;
         }
 
@@ -80,7 +109,7 @@ private:
             parents.erase(it);
         }
 
-        auto add_child(const std::shared_ptr<Node> &ptr) {
+        typename ChildSet::iterator add_child(const std::shared_ptr<Node> &ptr) {
             return children.emplace(std::shared_ptr<Node>(ptr)).first;
         }
 
@@ -93,6 +122,14 @@ private:
         }
 
 
+        ParentSet &get_parents() {
+            return parents;
+        }
+
+        ChildSet &get_children() {
+            return children;
+        }
+
         std::vector<id_type> get_children() const {
             std::vector<id_type> vec;
             for (auto child : children) {
@@ -100,16 +137,30 @@ private:
             }
             return vec;
         }
+
+        friend std::ostream &operator<<(std::ostream &os, const Node &node) {
+            os << "Node {value= " << &node.value << "}";
+            return os;
+        }
+
+        virtual ~Node() {
+            LOG(std::cout << "Destruction " << *this);
+        }
+
+        bool operator<(const Node &rhs) const {
+            return this->value.get_id() < rhs.value.get_id();
+        }
     };
 
-    std::map<id_type, std::shared_ptr<Node>> publication_ids;
+    using NodeLookupMap = std::map<id_type, std::shared_ptr<Node>>;
+    NodeLookupMap publication_ids;
     std::shared_ptr<Node> source;
 
 
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
     CitationGraph(id_type const &stem_id) {
-
+        publication_ids[stem_id] = std::shared_ptr<Node>(new Node(stem_id));
     }
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
@@ -125,7 +176,7 @@ public:
     }
 
     // Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
-    // wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
+    // wtedy, gdy metoda Publication.h::get_id jest noexcept. Zamiast pytajnika należy
     // wpisać stosowne wyrażenie.
     id_type get_root_id() const noexcept(Publication::get_id()) {
         return source->get_publication().get_id();
@@ -160,16 +211,44 @@ public:
     }
 
     void create(id_type const &id, std::vector<id_type> const &parent_ids) {
-        auto &it = publication_ids.find(id);
-        if (it == publication_ids.end()) {
-            throw PublicationAlreadyCreated();
+
+        if (parent_ids.empty()) {
+            throw PublicationNotFound();
         }
 
-        {
+        Transaction<ChildSet> c_trans;
+        Transaction<ParentSet> p_trans;
+        Transaction<NodeLookupMap> nl_trans;
 
+
+        auto added_iter = publication_ids.insert(publication_ids.begin(), std::make_pair(
+            id, std::shared_ptr<Node>(new Node(id))));
+        nl_trans.add(publication_ids, added_iter);
+        std::shared_ptr<Node> &child = (*added_iter).second;
+        for (id_type parent_id: parent_ids) {
+            if (parent_id == id) {
+                throw PublicationNotFound(); // TODO Probably other exception should be thrown
+            }
+            auto parent_iter = publication_ids.find(parent_id);
+            if (parent_iter == publication_ids.end()) {
+                throw PublicationNotFound();
+            }
+            std::shared_ptr<Node> &parent = (*parent_iter).second;
+            auto c_iter = parent->add_child(child);
+            auto p_iter = child->add_parent(parent);
+            c_trans.add(parent->get_children(), c_iter);
+            p_trans.add(child->get_parents(), p_iter);
         }
+
+
+        nl_trans.commit();
+        p_trans.commit();
+        c_trans.commit();
 
     }
+
+
+    friend std::ostream &operator<<(std::ostream &os, const CitationGraph &graph);
 
     // Dodaje nową krawędź w grafie cytowań. Zgłasza wyjątek PublicationNotFound,
     // jeśli któraś z podanych publikacji nie istnieje.
@@ -181,5 +260,6 @@ public:
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
     void remove(id_type const &id);
 };
+
 
 #endif // CITATIONGRAPH_H
