@@ -66,7 +66,6 @@ template<typename Publication>
 class CitationGraph {
 private:
 
-    class Node;
 
     template<typename T>
     struct PtrComparator {
@@ -84,7 +83,7 @@ private:
         }
     };
 
-
+    class Node;
     using id_type = typename Publication::id_type;
     using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
     using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
