@@ -16,14 +16,8 @@ public:
     };
 };
 
-class node{
-
-};
-
 
 int main() {
-
-
     CitationGraph<Publication<int>> graph(23);
     return 0;
 }
