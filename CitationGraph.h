@@ -27,6 +27,8 @@ class TriedToRemoveRoot : std::exception {
 };
 
 
+
+
 template<typename Container, typename Iterator>
 class Transaction {
 private:
@@ -100,7 +102,26 @@ private:
             }
             return vec;
         }
+
+        std::vector<id_type> get_parents() const {
+          std::vector<id_type> vec;
+          for (auto parent : parents) {
+            vec.emplace(parent->get_publication().get_id());
+          }
+          return vec;
+        }
+
+        bool operator<(const Node& rhs) {
+          return this->value.get_id() < rhs.value.get_id();
+        }
+
+        template <typename Node>
+        friend bool operator<(const std::weak_ptr<Node>& lhs, const std::weak_ptr<Node>& rhs);
     };
+
+    friend bool operator<(const std::weak_ptr<Node>& lhs, const std::weak_ptr<Node>& rhs) {
+      return lhs.lock()->operator<(*rhs.lock());
+    }
 
     std::map<id_type, std::shared_ptr<Node>> publication_ids;
     std::shared_ptr<Node> source;
@@ -110,11 +131,13 @@ public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
     CitationGraph(id_type const &stem_id) {
       try {
-        source = std::make_shared<Node>(stem_id);
+        source = std::make_shared<Node>(stem_id); // thorws
+
+        // If an exception is thrown by any operation,// this function has no effect.
         publication_ids.emplace(std::make_pair<>(stem_id, source));
       } catch (...) {
         source = nullptr;
-        publication_ids = nullptr;
+        publication_ids.clear(); // nothrow
         throw;
       }
     }
@@ -122,7 +145,7 @@ public:
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
     // noexcept.
     CitationGraph(CitationGraph<Publication> &&other) : publication_ids(), source(nullptr) {
-        *this = std::move(other);
+        *this = std::move(other); // nothrow
     }
 
     CitationGraph<Publication> &operator=(CitationGraph<Publication> &&other) {
@@ -142,15 +165,25 @@ public:
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
     std::vector<id_type> get_children(id_type const &id) const {
+      if (publication_ids.find(id) == publication_ids.end()) {
+        throw PublicationNotFound();
+      }
+      return publication_ids[id]->get_children();
     }
 
     // Zwraca listę identyfikatorów publikacji cytowanych przez publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
-    std::vector<id_type> get_parents(id_type const &id) const;
+    std::vector<id_type> get_parents(id_type const &id) const {
+      if (publication_ids.find(id) == publication_ids.end()) {
+        throw PublicationNotFound();
+      }
+      return publication_ids[id]->get_parents();
+    }
 
     // Sprawdza, czy publikacja o podanym identyfikatorze istnieje.
-    bool exists(id_type const &id) const;
+    bool exists(id_type const &id) const {
+    }
 
     // Zwraca referencję do obiektu reprezentującego publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli żądana publikacja
@@ -188,5 +221,9 @@ public:
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
     void remove(id_type const &id);
 };
+
+
+
+
 
 #endif // CITATIONGRAPH_H
