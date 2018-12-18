@@ -6,6 +6,14 @@
 #include <set>
 #include <memory>
 #include <map>
+#include <ostream>
+#include <iostream>
+
+#ifdef DEBUG
+#define LOG(x) x;
+#else
+#define LOG(x)
+#endif
 
 
 class PublicationAlreadyCreated : public std::exception {
@@ -58,19 +66,24 @@ template<typename Publication>
 class CitationGraph {
 private:
 
+    class Node;
     using id_type = typename Publication::id_type;
-
+    using ParentSet = std::set<std::weak_ptr<Node>>;
+    using ChildSet = std::set<std::shared_ptr<Node>>;
 
     class Node {
+
+
     private:
         Publication value;
-        std::set<std::weak_ptr<Node>> parents;
-        std::set<std::shared_ptr<Node>> children;
+        ParentSet parents;
+        ChildSet children;
 
     public:
         Node(id_type id) : value(id), parents(), children() {}
 
-        auto add_parent(const std::shared_ptr<Node> &ptr) {
+
+        typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
             return parents.emplace(std::weak_ptr<Node>(ptr)).first;
         }
 
@@ -78,7 +91,7 @@ private:
             parents.erase(it);
         }
 
-        auto add_child(const std::shared_ptr<Node> &ptr) {
+        typename ChildSet::iterator add_child(const std::shared_ptr<Node> &ptr) {
             return children.emplace(std::shared_ptr<Node>(ptr)).first;
         }
 
@@ -91,12 +104,29 @@ private:
         }
 
 
+        ParentSet &get_parents() {
+            return parents;
+        }
+
+        ChildSet &get_children() {
+            return children;
+        }
+
         std::vector<id_type> get_children() const {
             std::vector<id_type> vec;
             for (auto child : children) {
                 vec.emplace(child->get_publication().get_id());
             }
             return vec;
+        }
+
+        friend std::ostream &operator<<(std::ostream &os, const Node &node) {
+            os << "Node {value= " << &node.value << "}";
+            return os;
+        }
+
+        virtual ~Node() {
+            LOG(std::cout << "Destruction " << *this);
         }
     };
 
@@ -108,7 +138,7 @@ private:
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
     CitationGraph(id_type const &stem_id) {
-         publication_ids[stem_id] = std::shared_ptr<Node>(new Node(stem_id));
+        publication_ids[stem_id] = std::shared_ptr<Node>(new Node(stem_id));
     }
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
@@ -155,7 +185,7 @@ public:
     // o identyfikatorze id już istnieje. Zgłasza wyjątek PublicationNotFound, jeśli
     // któryś z wyspecyfikowanych poprzedników nie istnieje albo lista poprzedników jest pusta.
     void create(id_type const &id, id_type const &parent_id) {
-        create(id, std::vector<id_type>(parent_id));
+        create(id, std::vector<id_type>(1, parent_id));
     }
 
     void create(id_type const &id, std::vector<id_type> const &parent_ids) {
@@ -164,27 +194,31 @@ public:
             throw PublicationNotFound();
         }
 
-        Transaction<std::vector<id_type>> trans;
+        Transaction<ChildSet> c_trans;
+        Transaction<ParentSet> p_trans;
         Transaction<NodeLookupMap> nl_trans;
 
-        auto added_iter = publication_ids.emplace(id, std::shared_ptr<Node>(new Node(id)));
-        nl_trans.add(publication_ids, added_iter.first);
-        auto added_node = *(added_iter.first).second;
+
+        auto added_iter = publication_ids.insert(publication_ids.begin(), std::make_pair(
+            id, std::shared_ptr<Node>(new Node(id))));
+        nl_trans.add(publication_ids, added_iter);
+        std::shared_ptr<Node> &child = (*added_iter).second;
         for (id_type parent_id: parent_ids) {
             auto parent_iter = publication_ids.find(parent_id);
-            if (parent_iter == publication_ids.end()){
+            if (parent_iter == publication_ids.end()) {
                 throw PublicationNotFound();
             }
-
-            auto parent = *parent_iter;
-
-
-
+            std::shared_ptr<Node> &parent = (*parent_iter).second;
+            auto c_iter = parent->add_child(child);
+            auto p_iter = child->add_parent(parent);
+            c_trans.add(parent->get_children(), c_iter);
+            p_trans.add(child->get_parents(), p_iter);
         }
 
 
         nl_trans.commit();
-        trans.commit();
+        p_trans.commit();
+        c_trans.commit();
 
     }
 
