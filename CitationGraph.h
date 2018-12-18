@@ -3,28 +3,82 @@
 
 #include <vector>
 #include <string>
+#include <set>
+#include <memory>
 #include "Publication.h"
+#include <map>
 
 template <typename Publication>
 class CitationGraph {
+  private:
+
+
+    class Node {
+      private:
+        Publication value;
+        std::set<std::weak_ptr<Node>> parents;
+        std::set<std::shared_ptr<Node>> children;
+
+      public:
+        Node(typename Publication::id_type id) : value(id), parents(), children() {}
+
+        void add_parent(const std::shared_ptr<Node>& ptr) {
+          parents.emplace(std::weak_ptr<Node>(ptr));
+        }
+
+        void add_child(const std::shared_ptr<Node>& ptr) {
+          children.emplace(std::shared_ptr<Node>(ptr));
+        }
+
+        Publication& get_publication() const {
+          return value;
+        }
+
+        std::vector<typename Publication::id_type> get_children() const {
+          std::vector<typename Publication::id_type> vec;
+          for (auto child : children) {
+            vec.emplace(child->get_publication().get_id());
+          }
+          return vec;
+        }
+
+
+    };
+
+    std::map<typename Publication::id_type, std::shared_ptr<Node>> publication_ids;
+    std::shared_ptr<Node> source;
+
+
   public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
-    CitationGraph(typename Publication::id_type const &stem_id);
+    CitationGraph(typename Publication::id_type const &stem_id) {
+
+    }
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
     // noexcept.
-    CitationGraph(CitationGraph<Publication> &&other);
-    CitationGraph<Publication>& operator=(CitationGraph<Publication> &&other);
+    CitationGraph(CitationGraph<Publication> &&other) : publication_ids(), source(nullptr) {
+      *this = std::move(other);
+    }
+
+    CitationGraph<Publication>& operator=(CitationGraph<Publication> &&other) {
+      std::swap(this->publication_ids, std::move(other.publication_ids));
+      std::swap(this->source, std::move(other.source));
+      std::swap(this->source_id, std::move(other.source_id));
+    }
 
     // Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
     // wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
     // wpisać stosowne wyrażenie.
-    typename Publication::id_type get_root_id() const; //noexcept(?);
+    typename Publication::id_type get_root_id() const { //noexcept(?);
+      return source->get_publication().get_id();
+    }
 
     // Zwraca listę identyfikatorów publikacji cytujących publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
-    std::vector<typename Publication::id_type> get_children(typename Publication::id_type const &id) const;
+    std::vector<typename Publication::id_type> get_children(typename Publication::id_type const &id) const {
+    }
 
     // Zwraca listę identyfikatorów publikacji cytowanych przez publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
@@ -57,6 +111,25 @@ class CitationGraph {
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
     void remove(typename Publication::id_type const &id);
 };
+
+class PublicationAlreadyCreated : public std::exception {
+    char const * what() const noexcept {
+      return "PublicationAlreadyCreated";
+    }
+};
+
+class PublicationNotFound : std::exception {
+    char const * what() const noexcept {
+      return "PublicationNotFound";
+    }
+};
+class TriedToRemoveRoot : std::exception {
+    char const * what() const noexcept {
+      return "TriedToRemoveRoot";
+    }
+};
+
+
 
 
 #endif // CITATIONGRAPH_H
