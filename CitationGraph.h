@@ -11,8 +11,6 @@
 template <typename Publication>
 class CitationGraph {
   private:
-
-
     class Node {
       private:
         Publication value;
@@ -22,18 +20,27 @@ class CitationGraph {
       public:
         Node(typename Publication::id_type id) : value(id), parents(), children() {}
 
-        void add_parent(const std::shared_ptr<Node>& ptr) {
-          parents.emplace(std::weak_ptr<Node>(ptr));
+        auto add_parent(const std::shared_ptr<Node>& ptr) {
+          return parents.emplace(std::weak_ptr<Node>(ptr)).first;
         }
 
-        void add_child(const std::shared_ptr<Node>& ptr) {
-          children.emplace(std::shared_ptr<Node>(ptr));
+        void remove_parent(typename std::set<std::shared_ptr<Node>>::iterator it) {
+          parents.erase(it);
         }
 
-        Publication& get_publication() const {
+        auto add_child(const std::shared_ptr<Node>& ptr) {
+          return children.emplace(std::shared_ptr<Node>(ptr)).first;
+        }
+
+        void remove_child(typename std::set<std::shared_ptr<Node>>::iterator it) {
+          children.erase(it);
+        }
+
+        const Publication& get_publication() const {
           return value;
         }
 
+        
         std::vector<typename Publication::id_type> get_children() const {
           std::vector<typename Publication::id_type> vec;
           for (auto child : children) {
@@ -41,8 +48,6 @@ class CitationGraph {
           }
           return vec;
         }
-
-
     };
 
     std::map<typename Publication::id_type, std::shared_ptr<Node>> publication_ids;
@@ -70,7 +75,7 @@ class CitationGraph {
     // Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
     // wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
     // wpisać stosowne wyrażenie.
-    typename Publication::id_type get_root_id() const { //noexcept(?);
+    typename Publication::id_type get_root_id() const noexcept(Publication::get_id()) {
       return source->get_publication().get_id();
     }
 
