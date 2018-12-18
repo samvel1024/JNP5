@@ -60,6 +60,7 @@ public:
         to_be_removed.emplace_back(c, iter);
     }
 
+
 };
 
 template<typename Publication>
@@ -159,13 +160,22 @@ private:
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
     CitationGraph(id_type const &stem_id) {
-        publication_ids[stem_id] = std::shared_ptr<Node>(new Node(stem_id));
+      try {
+        source = std::make_shared<Node>(stem_id); // thorws
+
+        // If an exception is thrown by any operation,// this function has no effect.
+        publication_ids.emplace(std::make_pair<>(stem_id, source));
+      } catch (...) {
+        source = nullptr;
+        publication_ids.clear(); // nothrow, possibly unnecessary
+        throw;
+      }
     }
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
     // noexcept.
     CitationGraph(CitationGraph<Publication> &&other) : publication_ids(), source(nullptr) {
-        *this = std::move(other);
+        *this = std::move(other); // nothrow
     }
 
     CitationGraph<Publication> &operator=(CitationGraph<Publication> &&other) {
@@ -175,7 +185,7 @@ public:
     }
 
     // Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
-    // wtedy, gdy metoda Publication.h::get_id jest noexcept. Zamiast pytajnika należy
+    // wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
     // wpisać stosowne wyrażenie.
     id_type get_root_id() const noexcept(Publication::get_id()) {
         return source->get_publication().get_id();
@@ -185,15 +195,25 @@ public:
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
     std::vector<id_type> get_children(id_type const &id) const {
+      if (publication_ids.find(id) == publication_ids.end()) {
+        throw PublicationNotFound();
+      }
+      return publication_ids[id]->get_children();
     }
 
     // Zwraca listę identyfikatorów publikacji cytowanych przez publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
-    std::vector<id_type> get_parents(id_type const &id) const;
+    std::vector<id_type> get_parents(id_type const &id) const {
+      if (publication_ids.find(id) == publication_ids.end()) {
+        throw PublicationNotFound();
+      }
+      return publication_ids[id]->get_parents();
+    }
 
     // Sprawdza, czy publikacja o podanym identyfikatorze istnieje.
-    bool exists(id_type const &id) const;
+    bool exists(id_type const &id) const {
+    }
 
     // Zwraca referencję do obiektu reprezentującego publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli żądana publikacja
@@ -246,9 +266,6 @@ public:
 
     }
 
-
-    friend std::ostream &operator<<(std::ostream &os, const CitationGraph &graph);
-
     // Dodaje nową krawędź w grafie cytowań. Zgłasza wyjątek PublicationNotFound,
     // jeśli któraś z podanych publikacji nie istnieje.
     void add_citation(id_type const &child_id, id_type const &parent_id);
@@ -257,8 +274,10 @@ public:
     // PublicationNotFound, jeśli żądana publikacja nie istnieje. Zgłasza wyjątek
     // TriedToRemoveRoot przy próbie usunięcia pierwotnej publikacji.
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
-    void remove(id_type const &id);
-};
+    void remove(id_type const &id) {
 
+
+    }
+};
 
 #endif // CITATIONGRAPH_H
