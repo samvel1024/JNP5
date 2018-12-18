@@ -85,7 +85,7 @@ private:
     };
 
     class Node;
-    using id_type = typename Publication::id_type;
+    using NodeId = typename Publication::id_type;
     using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
     using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
 
@@ -98,7 +98,7 @@ private:
         ChildSet children;
 
     public:
-        Node(id_type id) : value(id), parents(), children() {}
+        Node(NodeId id) : value(id), parents(), children() {}
 
 
         typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
@@ -130,8 +130,8 @@ private:
             return children;
         }
 
-        std::vector<id_type> get_children() const {
-            std::vector<id_type> vec;
+        std::vector<NodeId> get_children() const {
+            std::vector<NodeId> vec;
             for (auto child : children) {
                 vec.emplace(child->get_publication().get_id());
             }
@@ -152,14 +152,14 @@ private:
         }
     };
 
-    using NodeLookupMap = std::map<id_type, std::shared_ptr<Node>>;
+    using NodeLookupMap = std::map<NodeId, std::shared_ptr<Node>>;
     NodeLookupMap publication_ids;
     std::shared_ptr<Node> source;
 
 
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
-    CitationGraph(id_type const &stem_id) {
+    CitationGraph(NodeId const &stem_id) {
       try {
         source = std::make_shared<Node>(stem_id); // thorws
 
@@ -187,14 +187,14 @@ public:
     // Zwraca identyfikator źródła. Metoda ta powinna być noexcept wtedy i tylko
     // wtedy, gdy metoda Publication::get_id jest noexcept. Zamiast pytajnika należy
     // wpisać stosowne wyrażenie.
-    id_type get_root_id() const noexcept(Publication::get_id()) {
+    NodeId get_root_id() const noexcept(Publication::get_id()) {
         return source->get_publication().get_id();
     }
 
     // Zwraca listę identyfikatorów publikacji cytujących publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
-    std::vector<id_type> get_children(id_type const &id) const {
+    std::vector<NodeId> get_children(NodeId const &id) const {
       if (publication_ids.find(id) == publication_ids.end()) {
         throw PublicationNotFound();
       }
@@ -204,7 +204,7 @@ public:
     // Zwraca listę identyfikatorów publikacji cytowanych przez publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli dana publikacja
     // nie istnieje.
-    std::vector<id_type> get_parents(id_type const &id) const {
+    std::vector<NodeId> get_parents(NodeId const &id) const {
       if (publication_ids.find(id) == publication_ids.end()) {
         throw PublicationNotFound();
       }
@@ -212,24 +212,24 @@ public:
     }
 
     // Sprawdza, czy publikacja o podanym identyfikatorze istnieje.
-    bool exists(id_type const &id) const {
+    bool exists(NodeId const &id) const {
     }
 
     // Zwraca referencję do obiektu reprezentującego publikację o podanym
     // identyfikatorze. Zgłasza wyjątek PublicationNotFound, jeśli żądana publikacja
     // nie istnieje.
-    Publication &operator[](id_type const &id) const;
+    Publication &operator[](NodeId const &id) const;
 
     // Tworzy węzeł reprezentujący nową publikację o identyfikatorze id cytującą
     // publikacje o podanym identyfikatorze parent_id lub podanych identyfikatorach
     // parent_ids. Zgłasza wyjątek PublicationAlreadyCreated, jeśli publikacja
     // o identyfikatorze id już istnieje. Zgłasza wyjątek PublicationNotFound, jeśli
     // któryś z wyspecyfikowanych poprzedników nie istnieje albo lista poprzedników jest pusta.
-    void create(id_type const &id, id_type const &parent_id) {
-        create(id, std::vector<id_type>(1, parent_id));
+    void create(NodeId const &id, NodeId const &parent_id) {
+        create(id, std::vector<NodeId>(1, parent_id));
     }
 
-    void create(id_type const &id, std::vector<id_type> const &parent_ids) {
+    void create(NodeId const &id, std::vector<NodeId> const &parent_ids) {
 
         if (parent_ids.empty()) {
             throw PublicationNotFound();
@@ -244,7 +244,7 @@ public:
             id, std::shared_ptr<Node>(new Node(id))));
         nl_trans.add(publication_ids, added_iter);
         std::shared_ptr<Node> &child = (*added_iter).second;
-        for (id_type parent_id: parent_ids) {
+        for (NodeId parent_id: parent_ids) {
             if (parent_id == id) {
                 throw PublicationNotFound(); // TODO Probably other exception should be thrown
             }
@@ -268,13 +268,13 @@ public:
 
     // Dodaje nową krawędź w grafie cytowań. Zgłasza wyjątek PublicationNotFound,
     // jeśli któraś z podanych publikacji nie istnieje.
-    void add_citation(id_type const &child_id, id_type const &parent_id);
+    void add_citation(NodeId const &child_id, NodeId const &parent_id);
 
     // Usuwa publikację o podanym identyfikatorze. Zgłasza wyjątek
     // PublicationNotFound, jeśli żądana publikacja nie istnieje. Zgłasza wyjątek
     // TriedToRemoveRoot przy próbie usunięcia pierwotnej publikacji.
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
-    void remove(id_type const &id) {
+    void remove(NodeId const &id) {
 
 
     }
