@@ -27,20 +27,19 @@ class TriedToRemoveRoot : std::exception {
 };
 
 
-template<typename Container, typename Iterator>
+template<typename Container>
 class Transaction {
 private:
-    std::vector<Iterator> to_be_removed{};
-    Container &container;
+    std::vector<std::pair<Container &, typename Container::iterator>> to_be_removed{};
     bool failed = true;
 public:
 
-    explicit Transaction(Container &c) : container(c) {}
+    explicit Transaction() = default;
 
     virtual ~Transaction() {
         if (this->failed) {
             for (auto &i: to_be_removed) {
-                container.erase(i);
+                i.first.erase(i.second);
             }
         }
     }
@@ -49,10 +48,9 @@ public:
         failed = false;
     }
 
-    void add(Iterator &iter) {
-        to_be_removed.emplace_back(iter);
+    void add(Container &c, typename Container::iterator &iter) {
+        to_be_removed.emplace_back(c, iter);
     }
-
 
 };
 
@@ -102,14 +100,15 @@ private:
         }
     };
 
-    std::map<id_type, std::shared_ptr<Node>> publication_ids;
+    using NodeLookupMap = std::map<id_type, std::shared_ptr<Node>>;
+    NodeLookupMap publication_ids;
     std::shared_ptr<Node> source;
 
 
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
     CitationGraph(id_type const &stem_id) {
-
+         publication_ids[stem_id] = std::shared_ptr<Node>(new Node(stem_id));
     }
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
@@ -156,18 +155,36 @@ public:
     // o identyfikatorze id już istnieje. Zgłasza wyjątek PublicationNotFound, jeśli
     // któryś z wyspecyfikowanych poprzedników nie istnieje albo lista poprzedników jest pusta.
     void create(id_type const &id, id_type const &parent_id) {
-        create(id, std::vector<id_type>(1, parent_id));
+        create(id, std::vector<id_type>(parent_id));
     }
 
     void create(id_type const &id, std::vector<id_type> const &parent_ids) {
-        auto &it = publication_ids.find(id);
-        if (it == publication_ids.end()) {
-            throw PublicationAlreadyCreated();
+
+        if (parent_ids.empty()) {
+            throw PublicationNotFound();
         }
 
-        {
+        Transaction<std::vector<id_type>> trans;
+        Transaction<NodeLookupMap> nl_trans;
+
+        auto added_iter = publication_ids.emplace(id, std::shared_ptr<Node>(new Node(id)));
+        nl_trans.add(publication_ids, added_iter.first);
+        auto added_node = *(added_iter.first).second;
+        for (id_type parent_id: parent_ids) {
+            auto parent_iter = publication_ids.find(parent_id);
+            if (parent_iter == publication_ids.end()){
+                throw PublicationNotFound();
+            }
+
+            auto parent = *parent_iter;
+
+
 
         }
+
+
+        nl_trans.commit();
+        trans.commit();
 
     }
 
