@@ -6,3 +6,4 @@
 !*.c
 !*.cpp
 !*.h
+!run_tests.sh
