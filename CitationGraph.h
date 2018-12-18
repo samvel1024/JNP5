@@ -137,7 +137,7 @@ public:
         publication_ids.emplace(std::make_pair<>(stem_id, source));
       } catch (...) {
         source = nullptr;
-        publication_ids.clear(); // nothrow
+        publication_ids.clear(); // nothrow, possibly unnecessary
         throw;
       }
     }
@@ -219,7 +219,10 @@ public:
     // PublicationNotFound, jeśli żądana publikacja nie istnieje. Zgłasza wyjątek
     // TriedToRemoveRoot przy próbie usunięcia pierwotnej publikacji.
     // W wypadku rozspójnienia grafu, zachowujemy tylko spójną składową zawierającą źródło.
-    void remove(id_type const &id);
+    void remove(id_type const &id) {
+
+
+    }
 };
 
 
