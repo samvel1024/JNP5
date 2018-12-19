@@ -17,19 +17,19 @@
 
 
 class PublicationAlreadyCreated : public std::exception {
-    char const *what() const noexcept {
+    char const *what() const noexcept override {
         return "PublicationAlreadyCreated";
     }
 };
 
 class PublicationNotFound : std::exception {
-    char const *what() const noexcept {
+    char const *what() const noexcept override {
         return "PublicationNotFound";
     }
 };
 
 class TriedToRemoveRoot : std::exception {
-    char const *what() const noexcept {
+    char const *what() const noexcept override {
         return "TriedToRemoveRoot";
     }
 };
@@ -98,7 +98,7 @@ private:
         ChildSet children;
 
     public:
-        Node(NodeId id) : value(id), parents(), children() {}
+        explicit Node(NodeId id) : value(id), parents(), children() {}
 
 
         typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
@@ -159,7 +159,7 @@ private:
 
 public:
     // Tworzy nowy graf. Tworzy także węzeł publikacji o identyfikatorze stem_id.
-    CitationGraph(NodeId const &stem_id) {
+    explicit CitationGraph(NodeId const &stem_id) {
       try {
         source = std::make_shared<Node>(stem_id); // thorws
 
@@ -174,7 +174,7 @@ public:
 
     // Konstruktor przenoszący i przenoszący operator przypisania. Powinny być
     // noexcept.
-    CitationGraph(CitationGraph<Publication> &&other) : publication_ids(), source(nullptr) {
+    CitationGraph(CitationGraph<Publication> &&other) noexcept : publication_ids(), source(nullptr)  { //TODO is noexcept OK here ?
         *this = std::move(other); // nothrow
     }
 

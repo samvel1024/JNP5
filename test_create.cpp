@@ -12,7 +12,6 @@ int main() {
             graph.create(4, v);
             exit(1);
         }catch (PublicationNotFound &e){
-            std::cout << 1;
             //TODO assert graph not changed
         }
     }
