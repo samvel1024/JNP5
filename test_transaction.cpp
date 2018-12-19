@@ -12,7 +12,7 @@ using namespace std;
  */
 void try_add(std::map<int, bool> &s, std::vector<int> &to_be_added) {
 
-    Transaction<std::map<int, bool>> transaction;
+    Transaction<std::map<int, bool>> transaction(false);
     for (auto &i: to_be_added) {
         if (s.find(i-1) == s.end()){
             throw std::exception();
