@@ -2,7 +2,6 @@
 
 set -e
 
-
 for test in cmake-build-debug/test_*
 do
     echo "Running executable $test";

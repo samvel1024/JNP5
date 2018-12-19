@@ -30,6 +30,7 @@ class TriedToRemoveRoot : public std::exception {
     char const *what() const noexcept override { return "TriedToRemoveRoot"; }
 };
 
+
 template<typename Container>
 class Transaction {
 private:
@@ -309,6 +310,7 @@ public:
 	    p_trans.commit();
 	    c_trans.commit();
     }
+
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
         for (auto &pair : cg.publication_ids) {
