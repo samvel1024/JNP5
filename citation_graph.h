@@ -1,20 +1,22 @@
 #ifndef CITATIONGRAPH_H
 #define CITATIONGRAPH_H
 
-#include <vector>
-#include <string>
-#include <set>
-#include <memory>
-#include <map>
-#include <ostream>
+
 #include <iostream>
+#include <map>
+#include <memory>
 #include <ostream>
+#include <set>
+#include <type_traits>
+#include <vector>
+
 
 #ifdef DEBUG
 #define LOG(x) x<<std::endl;
 #else
 #define LOG(x)
 #endif
+
 
 class PublicationAlreadyCreated : public std::exception {
     char const *what() const noexcept override { return "PublicationAlreadyCreated"; }
@@ -110,7 +112,6 @@ private:
 
         ChildSet &get_child_set() noexcept { return children; }
 
-
         friend std::ostream &operator<<(std::ostream &os, const Node &node) {
             os << "Node {value= " << &node.value << "}";
             return os;
@@ -138,21 +139,21 @@ private:
 
     //TODO replace with dereferencing struct template, integrate with comparators too
 
-    std::vector<NodeId> to_vector(ChildSet &s)const{
+    std::vector<NodeId> to_vector(ChildSet &s) const {
         std::vector<NodeId> vec;
         vec.reserve(s.size());
-        for(auto &elem: s){
-            auto &drf = *elem;
+        for (auto &elem: s) {
+            auto &drf = *elem; // @TODO cant we just merge this two lines?
             vec.push_back(drf.get_publication().get_id());
         }
         return vec;
     }
 
-    std::vector<NodeId> to_vector_parent(ParentSet &s) const{
+    std::vector<NodeId> to_vector_parent(ParentSet &s) const {
         std::vector<NodeId> vec;
         vec.reserve(s.size());
-        for(auto &elem: s){
-            auto &drf = *(elem.lock());
+        for (auto &elem: s) {
+            auto &drf = *(elem.lock()); // @TODO cant we just merge this two lines?
             vec.push_back(drf.get_publication().get_id());
         }
         return vec;
@@ -177,7 +178,7 @@ public:
         std::swap(this->source_id, std::move(other.source_id));
     }
 
-    NodeId get_root_id() const {
+    NodeId get_root_id() const noexcept(noexcept(Publication::get_id)) {
         return this->source_id;
     }
 
@@ -240,7 +241,6 @@ public:
         p_trans.commit();
         c_trans.commit();
     }
-
 
     void add_citation(NodeId const &child_id, NodeId const &parent_id) {
         typename NodeLookupMap::iterator child_node =
@@ -306,8 +306,8 @@ public:
 	    }
 
         nl_trans.commit();
-        p_trans.commit();
-        c_trans.commit();
+	    p_trans.commit();
+	    c_trans.commit();
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
