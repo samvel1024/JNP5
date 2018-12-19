@@ -46,7 +46,7 @@ public:
         }
     }
 
-    void commit() { failed = false; }
+    void commit() { failed = !failed; }
 
     void add(Container &c, typename Container::iterator iter) {
         to_be_removed.emplace_back(c, iter);

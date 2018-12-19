@@ -1,6 +1,6 @@
 #include <iostream>
 #include "citation_graph.h"
-#include "publication.h"
+#include "Publication.h"
 
 using namespace std;
 
