@@ -19,11 +19,11 @@ class PublicationAlreadyCreated : public std::exception {
     char const *what() const noexcept override { return "PublicationAlreadyCreated"; }
 };
 
-class PublicationNotFound : std::exception {
+class PublicationNotFound : public std::exception {
     char const *what() const noexcept override { return "PublicationNotFound"; }
 };
 
-class TriedToRemoveRoot : std::exception {
+class TriedToRemoveRoot : public std::exception {
     char const *what() const noexcept override { return "TriedToRemoveRoot"; }
 };
 
@@ -35,7 +35,7 @@ private:
     bool failed;
 
 public:
-    explicit Transaction() : failed() {};
+    explicit Transaction() : failed(true) {};
 
     virtual ~Transaction() {
         if (this->failed) {
@@ -45,7 +45,7 @@ public:
         }
     }
 
-    void commit() { failed = false; }
+    void commit() { failed = !failed; }
 
     void add(Container &c, typename Container::iterator iter) {
         to_be_removed.emplace_back(c, iter);
@@ -281,16 +281,28 @@ public:
         Transaction<ChildSet> c_trans;
         Transaction<ParentSet> p_trans;
         Transaction<NodeLookupMap> nl_trans;
+        c_trans.commit();
+        p_trans.commit();
+        nl_trans.commit();
 
         typename NodeLookupMap::iterator node = publication_ids.find(id);
+	    nl_trans.add(publication_ids, node);
 
+	    for (auto& parent: node->second->get_parent_set()) {
+		    ChildSet& parent_child_set = parent.lock()->get_child_set();
+		    typename ChildSet::iterator iterator = parent_child_set.find(node->second);
+		    c_trans.add(parent_child_set, iterator);
+	    }
 
+	    for (std::shared_ptr<Node> child: node->second->get_child_set()) {
+		    ParentSet& child_parent_set = child->get_parent_set();
+		    typename ParentSet::iterator iterator = child_parent_set.find(node->second);
+		    p_trans.add(child_parent_set, iterator);
 
-        if (node->second->get_parent_set().size() == 1) {
-            DFS(nl_trans, node->second);
-        } else {
-            nl_trans.add(publication_ids, node);
-        }
+		    if (child_parent_set.size() == 1) {
+		    	DFS(nl_trans, child);
+		    }
+	    }
 
         nl_trans.commit();
         p_trans.commit();
