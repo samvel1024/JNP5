@@ -34,8 +34,8 @@ public:
 
     T getRoot(){
         for(auto &p : parents){
-            if (parents[p].empty())
-                return p;
+            if (p.second.empty())
+                return p.first;
         }
         throw std::exception();
     }

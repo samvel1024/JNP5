@@ -54,8 +54,8 @@ int main() {
     std::cout << e.what() << std::endl;
   }
   try {
-    gen.create("E", "Goto Considered Harmful");
-    gen.create("E", "Goto Considered Harmful");
+    //gen.create("E", "Goto Considered Harmful");
+    //gen.create("E", "Goto Considered Harmful");
   }
   catch (std::exception &e) {
     std::cout << e.what() << std::endl;
@@ -66,4 +66,6 @@ int main() {
   catch (std::exception &e) {
     std::cout << e.what() << std::endl;
   }
+
+  std::cout << gen;
 }
