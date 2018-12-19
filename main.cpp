@@ -1,5 +1,5 @@
 #include <iostream>
-#include "CitationGraph.h"
+#include "citation_graph.h"
 #include <set>
 #include <memory>
 
@@ -51,7 +51,7 @@ int main() {
 
 
 
-  //CitationGraph<Publication<int>> graph(23);
+  //citation_graph<Publication<int>> graph(23);
 
 
 

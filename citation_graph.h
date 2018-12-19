@@ -35,7 +35,7 @@ private:
     bool failed;
 
 public:
-    explicit Transaction(bool arg) : failed(arg) {};
+    explicit Transaction() : failed() {};
 
     virtual ~Transaction() {
         if (this->failed) {
@@ -45,9 +45,9 @@ public:
         }
     }
 
-    void commit() { failed = !failed; }
+    void commit() { failed = false; }
 
-    void add(Container &c, typename Container::iterator &iter) {
+    void add(Container &c, typename Container::iterator iter) {
         to_be_removed.emplace_back(c, iter);
     }
 };
@@ -103,27 +103,12 @@ private:
             return children.emplace(std::shared_ptr<Node>(ptr)).first;
         }
 
-        const Publication &get_publication() const { return value; }
+        const Publication &get_publication() const noexcept { return value; }
 
-        ParentSet &get_parents() { return parents; }
+        ParentSet &get_parent_set() noexcept { return parents; }
 
-        ChildSet &get_children() { return children; }
+        ChildSet &get_child_set() noexcept { return children; }
 
-        std::vector<NodeId> get_children() const {
-            std::vector<NodeId> vec;
-            for (auto child : children) {
-                vec.emplace(child->get_publication().get_id());
-            }
-            return vec;
-        }
-
-        std::vector<NodeId> get_parents() const {
-            std::vector<NodeId> vec;
-            for (auto parent : parents) {
-                vec.emplace(parent->get_publication().get_id());
-            }
-            return vec;
-        }
 
         friend std::ostream &operator<<(std::ostream &os, const Node &node) {
             os << "Node {value= " << &node.value << "}";
@@ -137,8 +122,8 @@ private:
         }
     };
 
-    typename NodeLookupMap::iterator find_or_throw(NodeId const &id) {
-        typename NodeLookupMap::iterator node = publication_ids.find(id);
+    typename NodeLookupMap::const_iterator find_or_throw(NodeId const &id) const {
+        auto node = publication_ids.find(id);
         if (node == publication_ids.end()) {
             throw PublicationNotFound();
         }
@@ -146,11 +131,38 @@ private:
     }
 
     NodeLookupMap publication_ids;
-    std::shared_ptr<Node> source;
+    std::shared_ptr<Node> source; //TODO does this have to be shared_ptr??
+    NodeId source_id;
+
+
+    //TODO replace with dereferencing struct template, integrate with comparators too
+
+    std::vector<NodeId> to_vector(ChildSet &s)const{
+        std::vector<NodeId> vec;
+        vec.reserve(s.size());
+        for(auto &elem: s){
+            auto &drf = *elem;
+            vec.push_back(drf.get_publication().get_id());
+        }
+        return vec;
+    }
+
+    std::vector<NodeId> to_vector_parent(ParentSet &s) const{
+        std::vector<NodeId> vec;
+        vec.reserve(s.size());
+        for(auto &elem: s){
+            auto &drf = *(elem.lock());
+            vec.push_back(drf.get_publication().get_id());
+        }
+        return vec;
+    }
 
 public:
+
     explicit CitationGraph(NodeId const &stem_id) {
         publication_ids[stem_id] = std::make_shared<Node>(stem_id);
+        this->source_id = stem_id;
+        this->source = publication_ids[stem_id];
     }
 
     CitationGraph(CitationGraph<Publication> &&other) noexcept
@@ -164,23 +176,25 @@ public:
         std::swap(this->source_id, std::move(other.source_id));
     }
 
-    NodeId get_root_id() const noexcept(Publication::get_id()) {
-        return source->get_publication().get_id();
+    NodeId get_root_id() const {
+        return this->source_id;
     }
 
     std::vector<NodeId> get_children(NodeId const &id) const {
-        return find_or_throw(id)->second->get_children();
+        ChildSet &c =  find_or_throw(id)->second->get_child_set();
+        return to_vector(c);
     }
 
     std::vector<NodeId> get_parents(NodeId const &id) const {
-        return find_or_throw(id)->second->get_parents();
+        ParentSet &a = find_or_throw(id)->second->get_parent_set();
+        return to_vector_parent(a);
     }
 
     bool exists(NodeId const &id) const {
         return publication_ids.find(id) != publication_ids.end();
     }
 
-    Publication &operator[](NodeId const &id) const {
+    const Publication &operator[](NodeId const &id) const {
         return find_or_throw(id)->second->get_publication();
     }
 
@@ -197,9 +211,9 @@ public:
             throw PublicationNotFound();
         }
 
-        Transaction<ChildSet> c_trans(true);
-        Transaction<ParentSet> p_trans(true);
-        Transaction<NodeLookupMap> nl_trans(true);
+        Transaction<ChildSet> c_trans;
+        Transaction<ParentSet> p_trans;
+        Transaction<NodeLookupMap> nl_trans;
 
         auto added_iter = publication_ids.insert(
             publication_ids.begin(),
@@ -217,8 +231,8 @@ public:
             std::shared_ptr<Node> &parent = (*parent_iter).second;
             auto c_iter = parent->add_child(child);
             auto p_iter = child->add_parent(parent);
-            c_trans.add(parent->get_children(), c_iter);
-            p_trans.add(child->get_parents(), p_iter);
+            c_trans.add(parent->get_child_set(), c_iter);
+            p_trans.add(child->get_parent_set(), p_iter);
         }
 
         nl_trans.commit();
@@ -236,11 +250,11 @@ public:
             throw PublicationNotFound();
         }
 
-        Transaction<ChildSet> c_trans(true);
-        Transaction<ParentSet> p_trans(true);
-        p_trans.add(child_node->second->get_parents(),
+        Transaction<ChildSet> c_trans;
+        Transaction<ParentSet> p_trans;
+        p_trans.add(child_node->second->get_parent_set(),
                     child_node->second->add_parent(par_node->second));
-        c_trans.add(par_node->second->get_children(),
+        c_trans.add(par_node->second->get_child_set(),
                     par_node->second->add_child(child_node->second));
 
         c_trans.commit();
@@ -251,7 +265,7 @@ public:
     void DFS(Transaction<T> &iterators_set, std::shared_ptr<Node> &node) {
         iterators_set.add(publication_ids,
                           publication_ids.find(node->get_publication().get_id()));
-        for (auto child : node.get_children()) {
+        for (auto child : node->get_child_set()) {
             DFS(iterators_set, child);
         }
     }
@@ -260,31 +274,19 @@ public:
         if (publication_ids.find(id) == publication_ids.end()) {
             throw PublicationNotFound();
         }
-        if (id == source.get_id()) {
+        if (id == source->get_publication().get_id()) {
             throw TriedToRemoveRoot();
         }
 
-        Transaction<ChildSet> c_trans(false);
-        Transaction<ParentSet> p_trans(false);
-        Transaction<NodeLookupMap> nl_trans(false);
+        Transaction<ChildSet> c_trans;
+        Transaction<ParentSet> p_trans;
+        Transaction<NodeLookupMap> nl_trans;
 
         typename NodeLookupMap::iterator node = publication_ids.find(id);
 
-        for (auto &parent : node->second->get_parents()) {
-            ChildSet &parent_child_set = parent.lock()->get_children();
-            typename ChildSet::iterator iterator =
-                parent_child_set.find(node->second);
-            c_trans.add(parent_child_set, iterator);
-        }
 
-        for (std::shared_ptr<Node> &child : node->second->get_children()) {
-            ParentSet &child_parent_set = child->get_children();
-            typename ParentSet::iterator iterator =
-                child_parent_set.find(node->second);
-            p_trans.add(child_parent_set, iterator);
-        }
 
-        if (node->second->get_parents().size() == 1) {
+        if (node->second->get_parent_set().size() == 1) {
             DFS(nl_trans, node->second);
         } else {
             nl_trans.add(publication_ids, node);

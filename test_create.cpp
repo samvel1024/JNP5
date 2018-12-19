@@ -1,10 +1,12 @@
 #include <iostream>
-#include "CitationGraph.h"
+#include "citation_graph.h"
 #include "Publication.h"
+
+using namespace std;
 
 int main() {
     {
-        CitationGraph<Publication<int>> graph(1);
+        CitationGraph<Publication<int, 10>> graph(1);
         graph.create(2, 1);
         graph.create(3, 1);
         try {
@@ -16,7 +18,7 @@ int main() {
         }
     }
     {
-        CitationGraph<Publication<char>> graph('a');
+        CitationGraph<Publication<char, 10>> graph('a');
         graph.create('b', 'a');
         graph.create('c', 'a');
         try {
@@ -25,6 +27,18 @@ int main() {
         }catch (std::exception &e){
             exit(1);
         }
+    }
+    {
+        CitationGraph<Publication<string, 10>> graph("a");
+        graph.create("b", "a");
+        graph.create("c", "a");
+        try {
+            const std::vector<string> v{"c", "b"};
+            graph.create("d", v);
+        }catch (std::exception &e){
+            exit(1);
+        }
+        graph["a"];
     }
 
 }
