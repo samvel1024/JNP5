@@ -84,19 +84,19 @@ public:
 
     friend ostream &operator<<(ostream &os, Dag &dag) {
         for (auto &pair : dag.children) {
-            cout << "Children of " << pair.first << ": ";
+            os << "Children of " << pair.first << ": ";
             for (auto const &c : pair.second) {
-                cout << c << " ";
+                os << c << " ";
             }
-            cout << endl;
-            cout << "Parents of " << pair.first << ": ";
+            os << endl;
+            os << "Parents of " << pair.first << ": ";
             set<T> &parents = dag.parents[pair.first];
             for (auto const &p: parents) {
-                cout << p << " ";
+                os << p << " ";
             }
-            cout << endl;
+            os << endl;
         }
-        cout << endl;
+        os << endl;
         return os;
     }
 
