@@ -136,7 +136,6 @@ private:
 
 
     //TODO replace with dereferencing struct template, integrate with comparators too
-
     std::vector<NodeId> to_vector(ChildSet &s)const{
         std::vector<NodeId> vec;
         vec.reserve(s.size());
@@ -281,8 +280,8 @@ public:
         Transaction<ChildSet> c_trans;
         Transaction<ParentSet> p_trans;
         Transaction<NodeLookupMap> nl_trans;
-
-        typename NodeLookupMap::iterator node = publication_ids.find(id);
+        const NodeLookupMap &m = publication_ids;
+        typename NodeLookupMap::const_iterator node = m.find(id);
 
 
 
