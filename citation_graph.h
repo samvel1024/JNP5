@@ -8,6 +8,7 @@
 #include <map>
 #include <ostream>
 #include <iostream>
+#include <ostream>
 
 #ifdef DEBUG
 #define LOG(x) x<<std::endl;
@@ -307,6 +308,24 @@ public:
         nl_trans.commit();
         p_trans.commit();
         c_trans.commit();
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
+        for (auto &pair : cg.publication_ids) {
+            os << "Children of " << pair.first << ": ";
+            for(auto const &c : pair.second->get_child_set()){
+                os << c->get_publication().get_id() << " ";
+            }
+            os << std::endl;
+            os << "Parents of " << pair.first << ": ";
+            for(auto const &p: pair.second->get_parent_set()){
+                os << p.lock()->get_publication().get_id() << " ";
+            }
+            os << std::endl;
+        }
+        os << std::endl;
+        return os;
+
     }
 };
 
