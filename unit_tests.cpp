@@ -246,6 +246,32 @@ BOOST_AUTO_TEST_SUITE(SimpleOperations);
 		BOOST_ASSERT(gen.get_children("F").size() == 0);
 	}
 
+	BOOST_AUTO_TEST_CASE(segfault) {
+		CitationGraph<PublicationExample> gen("X");
+		std::vector<PublicationExample::id_type> parents_E;
+		parents_E.emplace_back("A");
+		parents_E.emplace_back("B");
+
+
+		gen.create("A", "X");
+		gen.create("B", "X");
+		gen.create("C", parents_E);
+
+
+		BOOST_ASSERT(gen.get_parents("A").size() == 1);
+		BOOST_ASSERT(gen.get_parents("B").size() == 1);
+		BOOST_ASSERT(gen.get_parents("C").size() == 2);
+		BOOST_ASSERT(gen.get_parents("X").size() == 0);
+
+		BOOST_ASSERT(gen.get_children("X").size() == 2);
+		BOOST_ASSERT(gen.get_children("A").size() == 1);
+		BOOST_ASSERT(gen.get_children("B").size() == 1);
+		BOOST_ASSERT(gen.get_children("C").size() == 0);
+
+		gen.remove("A");
+		gen.remove("B");
+	}
+
 
 
 BOOST_AUTO_TEST_SUITE_END()

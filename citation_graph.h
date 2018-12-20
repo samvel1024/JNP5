@@ -39,11 +39,14 @@ public:
     explicit Transaction() : failed(true) {};
 
     virtual ~Transaction() {
+	    std::cout << "BEG rem: "  << to_be_removed.size() << std::endl;
         if (this->failed) {
             for (auto &i : to_be_removed) {
+	            std::cout << "removing" << std::endl;
                 i.first.erase(i.second);
             }
         }
+	    std::cout << "BEG end"  << std::endl;
     }
 
     void commit() { failed = !failed; }
@@ -213,13 +216,14 @@ public:
             throw PublicationNotFound();
         }
 
+	    Transaction<NodeLookupMap> nl_trans;
         Transaction<ChildSet> c_trans;
         Transaction<ParentSet> p_trans;
-        Transaction<NodeLookupMap> nl_trans;
+
 
         auto added_iter = publication_ids.insert(
             publication_ids.begin(),
-            std::make_pair(id, std::shared_ptr<Node>(new Node(id))));
+            std::make_pair(id, std::make_shared<Node>(id)));
         nl_trans.add(publication_ids, added_iter);
         std::shared_ptr<Node> &child = (*added_iter).second;
         for (NodeId parent_id : parent_ids) {
@@ -267,13 +271,19 @@ public:
     void DFS(Transaction<U> &parent_set, Transaction<T> &node_lookup_map,
     		 std::shared_ptr<Node> &node, std::shared_ptr<Node> &father) {
     	if (node->get_parent_set().size() == 1) {
+		    std::cout << "two" << std::endl;
 		    node_lookup_map.add(publication_ids,
 		                      publication_ids.find(node->get_publication().get_id()));
 		    for (auto child : node->get_child_set()) {
 			    DFS(parent_set, node_lookup_map, child, node);
 		    }
 	    } else {
+		    std::cout << "one" << std::endl;
+		    if (node->get_parent_set().find(father) == node->get_parent_set().end()) {
+		    	std::cout << "kupka" << std::endl;
+		    }
     		parent_set.add(node->get_parent_set(), node->get_parent_set().find(father));
+		    std::cout << "After one" << std::endl;
     	}
     }
 
@@ -285,12 +295,19 @@ public:
             throw TriedToRemoveRoot();
         }
 
-        Transaction<ChildSet> c_trans;
-        Transaction<ParentSet> p_trans;
-        Transaction<NodeLookupMap> nl_trans;
+
+
+	    Transaction<NodeLookupMap> nl_trans;
+	    Transaction<ChildSet> c_trans;
+	    Transaction<ParentSet> p_trans;
+
+
+
         c_trans.commit();
         p_trans.commit();
         nl_trans.commit();
+
+	    std::cout << "Before loops" << std::endl;
 
         typename NodeLookupMap::iterator node = publication_ids.find(id);
         nl_trans.add(publication_ids, node);
@@ -301,6 +318,8 @@ public:
             c_trans.add(parent_child_set, iterator);
         }
 
+	    std::cout << "Middle loops" << std::endl;
+
         for (std::shared_ptr<Node> child: node->second->get_child_set()) {
             ParentSet& child_parent_set = child->get_parent_set();
             typename ParentSet::iterator iterator = child_parent_set.find(node->second);
@@ -308,6 +327,8 @@ public:
 
             DFS(p_trans, nl_trans, child, node->second);
         }
+
+        std::cout << "After loops" << std::endl;
 
         nl_trans.commit();
         p_trans.commit();
