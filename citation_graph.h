@@ -74,6 +74,7 @@ private:
     using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
     using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
     using NodeLookupMap = std::map<NodeId, std::shared_ptr<Node>>;
+    using RemovalMap = std::map<NodeId, std::pair<typename ChildSet::iterator, typename ParentSet::iterator>>;
 
     template<typename T>
     struct PtrComparator {
@@ -103,6 +104,7 @@ private:
     template<typename T, typename D>
     struct PtrComparator2 {
         D dereference;
+
         bool operator()(const T &lhs, const T &rhs) const {
             return dereference(lhs) < dereference(rhs);
         }
@@ -297,6 +299,15 @@ public:
         }
     }
 
+    bool is_orphan(NodeId const &id, const RemovalMap &to_remove) const {
+        for(auto &p_id : publication_ids[id].get_parent_set()){
+            if (to_remove[p_id].second.contains(id)){ // check not marked as remove
+                return false;
+            }
+        }
+        return true;
+    }
+
     void remove(NodeId const &id) {
         if (publication_ids.find(id) == publication_ids.end()) {
             throw PublicationNotFound();
@@ -305,35 +316,21 @@ public:
             throw TriedToRemoveRoot();
         }
 
-        Transaction<ChildSet> c_trans;
-        Transaction<ParentSet> p_trans;
-        Transaction<NodeLookupMap> nl_trans;
-        c_trans.commit();
-        p_trans.commit();
-        nl_trans.commit();
+        //SECOND : child
+        //FIRST: parent
+        RemovalMap to_remove;
 
-        typename NodeLookupMap::iterator node = publication_ids.find(id);
-        nl_trans.add(publication_ids, node);
+        ParentSet &parent_set = publication_ids[id]->get_parent_set();
+        for(auto iter = parent_set.begin(); iter != parent_set.end(); iter++){
+            auto &ptr = *iter;
+            const auto &parent = ptr.lock();
+            const auto &parent_id= parent->get_publication().get_id();
+            to_remove.insert(parent_id, std::make_pair(std::set<NodeId>(), std::set<NodeId>()));
+            to_remove[parent_id].first.emplace(iter);
 
-        for (auto &parent: node->second->get_parent_set()) {
-            ChildSet &parent_child_set = parent.lock()->get_child_set();
-            typename ChildSet::iterator iterator = parent_child_set.find(node->second);
-            c_trans.add(parent_child_set, iterator);
         }
 
-        for (std::shared_ptr<Node> child: node->second->get_child_set()) {
-            ParentSet &child_parent_set = child->get_parent_set();
-            typename ParentSet::iterator iterator = child_parent_set.find(node->second);
-            p_trans.add(child_parent_set, iterator);
 
-            if (child_parent_set.size() == 1) {
-                DFS(nl_trans, child);
-            }
-        }
-
-        nl_trans.commit();
-        p_trans.commit();
-        c_trans.commit();
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
