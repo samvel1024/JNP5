@@ -46,7 +46,7 @@ public:
         }
     }
 
-    void commit() { failed = false; }
+    void commit() { failed = !failed; }
 
     void add(Container &c, typename Container::iterator iter) {
         to_be_removed.emplace_back(c, iter);
@@ -92,6 +92,7 @@ private:
         Publication value;
         ParentSet parents;
         ChildSet children;
+        typename NodeLookupMap::iterator it;
 
     public:
         explicit Node(NodeId id) : value(id), parents(), children() {}
@@ -116,7 +117,7 @@ private:
             return os;
         }
 
-        virtual ~Node() { LOG(std::cout << "Destruction " << *this); }
+        virtual ~Node() { /*LOG(std::cout << "Destruction " << *this);*/ }
 
         bool operator<(const Node &rhs) const {
             return this->value.get_id() < rhs.value.get_id();
@@ -262,13 +263,18 @@ public:
         p_trans.commit();
     }
 
-    template<typename T>
-    void DFS(Transaction<T> &iterators_set, std::shared_ptr<Node> &node) {
-        iterators_set.add(publication_ids,
-                          publication_ids.find(node->get_publication().get_id()));
-        for (auto child : node->get_child_set()) {
-            DFS(iterators_set, child);
-        }
+    template<typename T, typename U>
+    void DFS(Transaction<U> &parent_set, Transaction<T> &node_lookup_map,
+    		 std::shared_ptr<Node> &node, std::shared_ptr<Node> &father) {
+    	if (node->get_parent_set().size() == 1) {
+		    node_lookup_map.add(publication_ids,
+		                      publication_ids.find(node->get_publication().get_id()));
+		    for (auto child : node->get_child_set()) {
+			    DFS(parent_set, node_lookup_map, child, node);
+		    }
+	    } else {
+    		parent_set.add(node->get_parent_set(), node->get_parent_set().find(father));
+    	}
     }
 
     void remove(NodeId const &id) {
@@ -287,23 +293,21 @@ public:
         nl_trans.commit();
 
         typename NodeLookupMap::iterator node = publication_ids.find(id);
-	    nl_trans.add(publication_ids, node);
+        nl_trans.add(publication_ids, node);
 
-	    for (auto& parent: node->second->get_parent_set()) {
-		    ChildSet& parent_child_set = parent.lock()->get_child_set();
-		    typename ChildSet::iterator iterator = parent_child_set.find(node->second);
-		    c_trans.add(parent_child_set, iterator);
-	    }
+        for (auto& parent: node->second->get_parent_set()) {
+            ChildSet& parent_child_set = parent.lock()->get_child_set();
+            typename ChildSet::iterator iterator = parent_child_set.find(node->second);
+            c_trans.add(parent_child_set, iterator);
+        }
 
-	    for (std::shared_ptr<Node> child: node->second->get_child_set()) {
-		    ParentSet& child_parent_set = child->get_parent_set();
-		    typename ParentSet::iterator iterator = child_parent_set.find(node->second);
-		    p_trans.add(child_parent_set, iterator);
+        for (std::shared_ptr<Node> child: node->second->get_child_set()) {
+            ParentSet& child_parent_set = child->get_parent_set();
+            typename ParentSet::iterator iterator = child_parent_set.find(node->second);
+            p_trans.add(child_parent_set, iterator);
 
-		    if (child_parent_set.size() == 1) {
-		    	DFS(nl_trans, child);
-		    }
-	    }
+            DFS(p_trans, nl_trans, child, node->second);
+        }
 
         nl_trans.commit();
         p_trans.commit();
