@@ -21,38 +21,68 @@ private:
 	id_type id;
 };
 
+class Type {
+public:
+	Type() : id(0) {}
+	Type(const Type& t) : id(t.id) {};
+	Type(Type&& t) : id(t.id) {};
+
+	Type& operator=(const Type& rhs) {
+
+	}
+
+
+
+
+private:
+	int id;
+	int counter;
+};
+
+class PublicationThrow {
+public:
+	typedef typename std::string id_type;
+	PublicationExample(id_type const &_id) : id(_id) {
+	}
+	id_type get_id() const noexcept {
+		return id;
+	}
+private:
+	id_type id;
+};
+
 
 BOOST_AUTO_TEST_SUITE(ProvidedTests);
 
 	BOOST_AUTO_TEST_CASE(example) {
 		CitationGraph<PublicationExample> gen("Goto Considered Harmful");
 		PublicationExample::id_type const id1 = gen.get_root_id(); // Czy to jest noexcept?
-		BOOST_ASSERT(gen.exists(id1));
-		BOOST_ASSERT(gen.get_parents(id1).size() == 0);
+		assert(gen.exists(id1));
+		assert(gen.get_parents(id1).size() == 0);
 		gen.create("A", id1);
 		gen.create("B", id1);
-		BOOST_ASSERT(gen.get_children(id1).size() == 2);
+		assert(gen.get_children(id1).size() == 2);
 		gen.create("C", "A");
 		gen.add_citation("C", "B");
-		BOOST_ASSERT(gen.get_parents("C").size() == 2);
-		BOOST_ASSERT(gen.get_children("A").size() == 1);
+		assert(gen.get_parents("C").size() == 2);
+		assert(gen.get_children("A").size() == 1);
 		std::vector<PublicationExample::id_type> parents;
 		parents.push_back("A");
 		parents.push_back("B");
 		gen.create("D", parents);
-		BOOST_ASSERT(gen.get_parents("D").size() == parents.size());
-		BOOST_ASSERT(gen.get_children("A").size() == 2);
-		BOOST_ASSERT("D" == gen["D"].get_id());
+		assert(gen.get_parents("D").size() == parents.size());
+		assert(gen.get_children("A").size() == 2);
+		assert("D" == gen["D"].get_id());
 		gen.remove("A");
-		BOOST_ASSERT(!gen.exists("A"));
-		BOOST_ASSERT(gen.exists("B"));
-		BOOST_ASSERT(gen.exists("C"));
-		BOOST_ASSERT(gen.exists("D"));
+		assert(!gen.exists("A"));
+		assert(gen.exists("B"));
+		assert(gen.exists("C"));
+		assert(gen.exists("D"));
 		gen.remove("B");
-		BOOST_ASSERT(!gen.exists("A"));
-		BOOST_ASSERT(!gen.exists("B"));
-		BOOST_ASSERT(!gen.exists("C"));
-		BOOST_ASSERT(!gen.exists("D"));
+		assert(!gen.exists("A"));
+		assert(!gen.exists("B"));
+		assert(!gen.exists("C"));
+		assert(!gen.exists("D"));
 		try {
 			gen["E"];
 		}
@@ -99,8 +129,13 @@ BOOST_AUTO_TEST_SUITE(SimpleOperations);
 		BOOST_ASSERT(gen.get_parents("D").size() == parents.size());
 		BOOST_ASSERT(gen.get_children("A").size() == 2);
 		BOOST_ASSERT("D" == gen["D"].get_id());
+		std::cout << "size: " << gen.get_parents("C").size() << std::endl;
+		std::cout << "size: " << gen.get_parents("D").size() << std::endl;
 		gen.remove("A");
-		BOOST_ASSERT(gen.get_parents("C").size() == 2);
+		std::cout << "size: " << gen.get_parents("C").size() << std::endl;
+		std::cout << "size: " << gen.get_parents("D").size() << std::endl;
+		BOOST_ASSERT(gen.get_parents("C").size() == 1);
+		BOOST_ASSERT(gen.get_parents("D").size() == 1);
 		BOOST_ASSERT(!gen.exists("A"));
 		BOOST_ASSERT(gen.exists("B"));
 		BOOST_ASSERT(gen.exists("C"));
@@ -245,6 +280,32 @@ BOOST_AUTO_TEST_SUITE(SimpleOperations);
 		BOOST_ASSERT(gen.get_children("E").size() == 0);
 		BOOST_ASSERT(gen.get_children("F").size() == 0);
 	}
+
+	BOOST_AUTO_TEST_CASE(simple_cycle) {
+		CitationGraph<PublicationExample> gen("A");
+		PublicationExample::id_type const root = gen.get_root_id();
+
+		std::vector<PublicationExample::id_type> parents_E;
+
+
+		parents_E.emplace_back("B");
+		parents_E.emplace_back("C");
+
+		gen.create("B", "A");
+		gen.create("C", "A");
+		gen.create("D", parents_E);
+		gen.remove("B");
+
+/*		BOOST_ASSERT(gen.get_parents("A").size() == 1);
+		BOOST_ASSERT(gen.get_parents("C").size() == 1);
+		BOOST_ASSERT(gen.get_parents("D").size() == 1);
+
+		BOOST_ASSERT(gen.get_children("A").size() == 1);
+		BOOST_ASSERT(gen.get_children("C").size() == 1);
+		BOOST_ASSERT(gen.get_children("D").size() == 1);*/
+	}
+
+
 
 
 
