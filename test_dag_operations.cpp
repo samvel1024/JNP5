@@ -1,7 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include "dag.h"
-#include "Publication.h"
+#include "publication.h"
 
 using namespace std;
 
