@@ -66,13 +66,15 @@ public:
     }
 
     void remove_orphan(const T&v){
+        assert(is_orphan(v));
         for(auto &c: children[v]){
             parents[c].erase(v);
             if (is_orphan(c)){
                 remove_orphan((c));
             }
         }
-
+        parents.erase(v);
+        children.erase(v);
     }
 
 

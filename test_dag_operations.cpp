@@ -29,8 +29,40 @@ void add(int node, IDag &d, ICitationGraph &g) {
     }
 }
 
+//Some ad-hoc tests
+//int f(){
+//    IDag d;
+//    d.add_edge(1, 2);
+//    d.add_edge(1, 3);
+//    d.add_edge(2, 4);
+//    d.add_edge(2, 3);
+//    cout << d << endl;
+//    d.remove_vertex(2);
+//    cout << d << endl;
+//
+//    return 1;
+//}
+//
+//
+//int f1(){
+//    IDag d;
+//    d.add_edge(1, 2);
+//    d.add_edge(1, 3);
+//    d.add_edge(2, 4);
+//    d.add_edge(3, 5);
+//    d.add_edge(3, 6);
+//    d.add_edge(4, 6);
+//    d.add_edge(4, 7);
+//    d.add_edge(6, 8);
+//    d.add_edge(7, 8);
+//    d.add_edge(7, 9);
+//    cout << d << endl;
+//    d.remove_vertex(2);
+//    cout << d << endl;
+//}
 
 int main() {
+
     vector<pair<int, int>> raw_input = IDag::read_raw();
     { //Test addition one by one
         IDag d = IDag::from_vector(raw_input);
@@ -64,14 +96,10 @@ int main() {
         int root = d.get_root();
         for (auto const&[key, val] : d.children) {
             if (key == root) continue;
-            cout << d << endl;
-            cout << key << endl;
             d.remove_vertex(key);
             graph.remove(key);
-            cout << d << endl << graph << endl;
             IDag::assert_same(d, graph);
         }
-
     }
 }
 
