@@ -5,10 +5,10 @@
 #include <sys/time.h>
 
 #define MIN_PER_RANK 1 /* Nodes/Rank: How 'fat' the DAG should be.  */
-#define MAX_PER_RANK 30
+#define MAX_PER_RANK 10
 #define MIN_RANKS 3    /* Ranks: How 'tall' the DAG should be.  */
-#define MAX_RANKS 60
-#define PERCENT 70     /* Chance of having an Edge.  */
+#define MAX_RANKS 10
+#define PERCENT 50     /* Chance of having an Edge.  */
 
 bool visited[100000];
 

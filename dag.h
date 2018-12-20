@@ -4,7 +4,10 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include "citation_graph.h"
+#include <cassert>
 #include <vector>
+#include <sstream>
 
 using namespace std;
 
@@ -16,13 +19,13 @@ public:
 
     Dag() = default;
 
-    void addVertex(const T &new_node, const T &parent) {
+    void add_vertex(const T &new_node, const T &parent) {
         parents[new_node] = set<T>{parent};
         children[new_node] = set<T>();
         children[parent].emplace(new_node);
     }
 
-    void addVertices(const T &new_node, const vector<T> &node_parents) {
+    void add_vertices(const T &new_node, const vector<T> &node_parents) {
         parents[new_node] = set<T>();
         children[new_node] = set<T>();
         for (auto &p :node_parents) {
@@ -32,7 +35,7 @@ public:
     }
 
 
-    T getRoot(){
+    T get_root(){
         for(auto &p : parents){
             if (p.second.empty())
                 return p.first;
@@ -46,14 +49,14 @@ public:
         }
     }
 
-    void addIfAbsent(const T &node) {
+    void add_if_absent(const T &node) {
         addIfAbsent(children, node);
         addIfAbsent(parents, node);
     }
 
-    void addEdge(const T &from, const T &to) {
-        addIfAbsent(from);
-        addIfAbsent(to);
+    void add_edge(const T &from, const T &to) {
+        add_if_absent(from);
+        add_if_absent(to);
         children[from].emplace(to);
         parents[to].emplace(from);
     }
@@ -71,8 +74,7 @@ public:
         children.erase(v);
     }
 
-
-    static vector<pair<int, int>> read_stdin() {
+    static vector<pair<int, int>> read_raw() {
         int a, b;
         vector<pair<int, int>> v;
         while (cin >> a) {
@@ -80,6 +82,24 @@ public:
             v.emplace_back(a, b);
         }
         return v;
+    }
+
+    static Dag<int> from_vector(const vector<pair<int, int>> &connections) {
+        Dag<int> d;
+        for (const auto &p : connections) {
+            d.add_edge(p.first, p.second);
+        }
+        return d;
+    }
+
+
+    template <typename P>
+    static void assert_same(Dag<int> &d, CitationGraph<P> &g){
+        std::ostringstream dag_serialize;
+        std::ostringstream graph_serialize;
+        dag_serialize << d;
+        graph_serialize << g;
+        assert(dag_serialize.str() == graph_serialize.str());
     }
 
     friend ostream &operator<<(ostream &os, Dag &dag) {
