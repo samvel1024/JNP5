@@ -101,6 +101,10 @@ private:
     public:
         explicit Node(NodeId id) : value(id), parents(), children(), id(id) {}
 
+
+        virtual ~Node() {
+        }
+
         typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
             return parents.emplace(std::weak_ptr<Node>(ptr)).first;
         }
@@ -319,10 +323,18 @@ public:
         std::map<NodeId, int> visited;
         dfs(visited, source_id, base_remove_id);
 
-        for (auto &remove_id: visited) {
+        std::vector<typename NodeLookupMap::iterator> to_be_removed;
+        for (typename NodeLookupMap::iterator iter = publication_ids.begin(); iter != publication_ids.end(); iter++){
+            const NodeId &remove_id = (*(iter)).first;
             if (visited[remove_id] == 1) continue;
-            //mark to remove the iterators here
+            // Exception can be thrown from here
+            to_be_removed.push_back(publication_ids.find(remove_id));
         }
+
+        for(typename NodeLookupMap::iterator i:to_be_removed){
+            publication_ids.erase(i); // No exception expected from here
+        }
+
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {

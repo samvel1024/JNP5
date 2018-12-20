@@ -58,8 +58,8 @@ int main() {
     {//Test removal
 
         IDag d = IDag::from_vector(raw_input);
-        //ICitationGraph graph(d.get_root());
-/*        for (const auto &p : raw_input) {
+        ICitationGraph graph(d.get_root());
+        for (const auto &p : raw_input) {
             if (!graph.exists(p.second))
                 graph.create(p.second, p.first);
             else
@@ -71,7 +71,7 @@ int main() {
             d.remove_vertex(key);
             graph.remove(key);
             IDag::assert_same(d, graph);
-        }*/
+        }
 
         //d.remove_vertex(2);
         std::cout << d;
