@@ -20,7 +20,6 @@ void add_with_parents(int node, IDag &d, ICitationGraph &g) {
 }
 
 
-
 void add(int node, IDag &d, ICitationGraph &g) {
     if (!g.exists(node)) {
         add_with_parents(node, d, g);
@@ -63,11 +62,13 @@ int main() {
                 graph.add_citation(p.second, p.first);
         }
         int root = d.get_root();
-        for( auto const& [key, val] : d.children )
-        {
+        for (auto const&[key, val] : d.children) {
             if (key == root) continue;
+            cout << d << endl;
+            cout << key << endl;
             d.remove_vertex(key);
             graph.remove(key);
+            cout << d << endl << graph << endl;
             IDag::assert_same(d, graph);
         }
 

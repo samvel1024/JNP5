@@ -61,17 +61,27 @@ public:
         parents[to].emplace(from);
     }
 
-    void remove_vertex(const T &v) {
-        for (auto &c: children[v]) {
+    bool is_orphan(const T&v){
+        return parents[v].empty();
+    }
+
+    void remove_orphan(const T&v){
+        for(auto &c: children[v]){
             parents[c].erase(v);
+            if (is_orphan(c)){
+                remove_orphan((c));
+            }
         }
 
+    }
+
+
+    void remove_vertex(const T &v) {
         for (auto &p:parents[v]) {
             children[p].erase(v);
         }
-
-        parents.erase(v);
-        children.erase(v);
+        parents[v].clear();
+        remove_orphan(v);
     }
 
     static vector<pair<int, int>> read_raw() {

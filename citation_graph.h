@@ -64,11 +64,16 @@ private:
     template<typename T>
     struct PtrComparator;
 
+    template<typename T>
+    struct DereferenceShared;
+    template<typename T, typename D>
+    struct PtrComparator2;
+    template<typename T, typename D>
+    struct PtrComparator2;
     using NodeId = typename Publication::id_type;
     using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
     using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
     using NodeLookupMap = std::map<NodeId, std::shared_ptr<Node>>;
-
 
     template<typename T>
     struct PtrComparator {
@@ -86,6 +91,27 @@ private:
             return w.operator()(lhs.lock(), rhs.lock());
         }
     };
+
+    //TODO remove or finish this section :D
+    template<typename T>
+    struct DereferenceShared {
+        T operator()(const std::shared_ptr<T> &p) const {
+            return *p;
+        }
+    };
+
+    template<typename T, typename D>
+    struct PtrComparator2 {
+        D dereference;
+        bool operator()(const T &lhs, const T &rhs) const {
+            return dereference(lhs) < dereference(rhs);
+        }
+    };
+
+    template<typename T>
+    struct WeakComparator2 {
+    };
+
 
     class Node {
     private:
