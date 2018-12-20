@@ -2,7 +2,7 @@
 #include <sstream>
 #include "dag.h"
 #include "citation_graph.h"
-#include "publication.h"
+#include "Publication.h"
 #include <cassert>
 using namespace std;
 
