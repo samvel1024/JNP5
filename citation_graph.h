@@ -9,6 +9,8 @@
 #include <ostream>
 #include <iostream>
 #include <ostream>
+#include <cassert>
+#include <sstream>
 
 #ifdef DEBUG
 #define LOG(x) x<<std::endl;
@@ -31,25 +33,32 @@ class TriedToRemoveRoot : public std::exception {
 template<typename Container>
 class Transaction {
 private:
-    std::vector<std::pair<Container &, typename Container::iterator>>
-        to_be_removed{};
+    enum Operation {
+        REMOVAL, ADDITION
+    };
+    std::vector<std::tuple<Container &, typename Container::iterator, Operation>> rollback_log{};
     bool failed;
 
 public:
     explicit Transaction() : failed(true) {};
 
     virtual ~Transaction() {
-        if (this->failed) {
-            for (auto &i : to_be_removed) {
-                i.first.erase(i.second);
+        for (auto &i : rollback_log) {
+            auto &[container, iter, type] = i;
+            if ((type == ADDITION && failed) || (type == REMOVAL && !failed)) {
+                container.erase(iter);
             }
         }
     }
 
     void commit() { failed = false; }
 
-    void add(Container &c, typename Container::iterator iter) {
-        to_be_removed.emplace_back(c, iter);
+    void record_addition(Container &c, typename Container::iterator iter) {
+        rollback_log.emplace_back(c, iter, ADDITION);
+    }
+
+    void record_removal(Container &c, typename Container::iterator iter) {
+        rollback_log.emplace_back(c, iter, REMOVAL);
     }
 };
 
@@ -93,9 +102,9 @@ private:
 
 
         virtual ~Node() {
-            LOG(std::cout << "Destruction of node with id: " << id << endl);
-            for (auto *p: parents) {
-
+            LOG(std::cout << "Destruction of node with id: " << id << std::endl);
+            for (auto &c: children) {
+                c->parents.erase(this);
             }
             children.clear();
             map.erase(iter);
@@ -158,25 +167,23 @@ private:
     std::vector<NodeId> to_vector_parent(ParentSet &s) const {
         std::vector<NodeId> vec;
         vec.reserve(s.size());
-        for (auto &elem: s) {
-            auto &drf = *(elem.lock());
-            vec.push_back(drf.get_publication().get_id());
+        for (auto *ptr: s) {
+            vec.push_back(ptr->get_publication().get_id());
         }
         return vec;
     }
 
 public:
 
-    explicit CitationGraph(NodeId const &stem_id) {
+    explicit CitationGraph(NodeId const &stem_id) : source_id(stem_id) {
         std::shared_ptr<Node> root = std::make_shared<Node>(stem_id, publication_ids);
         auto iter = publication_ids.insert(publication_ids.begin(), std::make_pair(stem_id, root));
         root->set_lookup_iterator(iter);
-        this->source_id = stem_id;
         this->source = root;
     }
 
     CitationGraph(CitationGraph<Publication> &&other) noexcept
-        : publication_ids(), source(nullptr) {
+        : publication_ids(), source(nullptr), source_id(other.stem_id) {
         *this = std::move(other);
     }
 
@@ -191,12 +198,12 @@ public:
     }
 
     std::vector<NodeId> get_children(NodeId const &id) const {
-        ChildSet &c = find_or_throw(id)->second->get_child_set();
+        ChildSet &c = find_or_throw(id)->second.lock()->get_child_set();
         return to_vector(c);
     }
 
     std::vector<NodeId> get_parents(NodeId const &id) const {
-        ParentSet &a = find_or_throw(id)->second->get_parent_set();
+        ParentSet &a = find_or_throw(id)->second.lock()->get_parent_set();
         return to_vector_parent(a);
     }
 
@@ -206,7 +213,7 @@ public:
     }
 
     const Publication &operator[](NodeId const &id) const {
-        return find_or_throw(id)->second->get_publication();
+        return find_or_throw(id)->second.lock()->get_publication();
     }
 
     void create(NodeId const &id, NodeId const &parent_id) {
@@ -230,7 +237,7 @@ public:
         auto lookup_iterator = publication_ids.insert(
             publication_ids.begin(),
             std::make_pair(id, child));
-        nl_trans.add(publication_ids, lookup_iterator);
+        nl_trans.record_addition(publication_ids, lookup_iterator);
         for (NodeId parent_id : parent_ids) {
             if (parent_id == id) {
                 throw PublicationNotFound();
@@ -242,8 +249,8 @@ public:
             std::shared_ptr<Node> parent = (*parent_iter).second.lock();
             auto c_iter = parent->add_child(child);
             auto p_iter = child->add_parent(parent.get());
-            c_trans.add(parent->get_child_set(), c_iter);
-            p_trans.add(child->get_parent_set(), p_iter);
+            c_trans.record_addition(parent->get_child_set(), c_iter);
+            p_trans.record_addition(child->get_parent_set(), p_iter);
         }
 
         child->set_lookup_iterator(lookup_iterator);
@@ -267,16 +274,32 @@ public:
 
         std::shared_ptr<Node> parent = parent_iter->second.lock();
         std::shared_ptr<Node> child = child_iter->second.lock();
-        p_trans.add(child->get_parent_set(), child->add_parent(parent.get()));
-        c_trans.add(parent->get_child_set(), parent->add_child(child));
+        p_trans.record_addition(child->get_parent_set(), child->add_parent(parent.get()));
+        c_trans.record_addition(parent->get_child_set(), parent->add_child(child));
 
         c_trans.commit();
         p_trans.commit();
     }
 
     void remove(NodeId const &base_remove_id) {
+        auto map_iter = publication_ids.find(base_remove_id);
+        if (map_iter == publication_ids.end()) {
+            throw PublicationNotFound();
+        }
+        if (base_remove_id == source_id) {
+            throw TriedToRemoveRoot();
+        }
 
+        Transaction<ChildSet> t;
 
+        auto node = (*map_iter).second.lock();
+        for (auto &p : node->get_parent_set()) {
+            auto i = p->get_child_set().find(node);
+            assert(i != p->get_child_set().end());
+            t.record_removal(p->get_child_set(), i);
+        }
+
+        t.commit();
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
@@ -288,12 +311,11 @@ public:
             }
             os << std::endl;
             os << "Parents of " << pair.first << ": ";
-            std::vector<NodeId> nodes;
+            std::set<NodeId> s;
             for (auto const &p: node->get_parent_set()) {
-                nodes.push_back(p->get_publication().get_id());
+                s.insert(p->get_publication().get_id());
             }
-            std::sort(nodes.begin(), nodes.end());
-            for(auto const &p: nodes){
+            for (auto const &p: s) {
                 os << p << " ";
             }
             os << std::endl;
@@ -301,6 +323,12 @@ public:
         os << std::endl;
         return os;
 
+    }
+
+    std::string to_string(){
+       std::ostringstream stream;
+       stream << *this;
+       return stream.str();
     }
 };
 

@@ -8,8 +8,15 @@
 #include <cassert>
 #include <vector>
 #include <sstream>
-
+#include <cstdio>
 using namespace std;
+
+#ifdef INPUTFILE
+void *___init_(){
+    return freopen(INPUTFILE, "r", stdin);
+}
+void *__ptr = ___init_();
+#endif
 
 template<typename T>
 class Dag {
@@ -112,6 +119,12 @@ public:
         dag_serialize << d;
         graph_serialize << g;
         assert(dag_serialize.str() == graph_serialize.str());
+    }
+    template <typename P>
+    static string to_string(P &g){
+        std::ostringstream str;
+        str << g;
+        return str.str();
     }
 
     friend ostream &operator<<(ostream &os, Dag &dag) {

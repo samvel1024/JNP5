@@ -19,7 +19,7 @@ void try_add(std::map<int, bool> &s, std::vector<int> &to_be_added) {
         }else {
             auto it = s.begin();
             auto added = s.insert(it, make_pair(i, false));
-            transaction.add(s, added);
+            transaction.record_addition(s, added);
         }
     }
 
