@@ -44,7 +44,10 @@ int main() {
                 graph.create(p.second, p.first);
             else
                 graph.add_citation(p.second, p.first);
+            assert(graph.exists(p.first));
+            assert(graph.exists(p.second));
         }
+        cout << graph << endl << d;
         IDag::assert_same(d, graph);
         std::cout << d;
     }
@@ -55,27 +58,27 @@ int main() {
         add(root, d, g);
         IDag::assert_same(d, g);
     }
-    {//Test removal
-
-        IDag d = IDag::from_vector(raw_input);
-        ICitationGraph graph(d.get_root());
-        for (const auto &p : raw_input) {
-            if (!graph.exists(p.second))
-                graph.create(p.second, p.first);
-            else
-                graph.add_citation(p.second, p.first);
-        }
-        int root = d.get_root();
-        for (auto const&[key, val] : d.children) {
-            if (key == root) continue;
-            d.remove_vertex(key);
-            graph.remove(key);
-            IDag::assert_same(d, graph);
-        }
-
-        //d.remove_vertex(2);
-        std::cout << d;
-    }
+//    {//Test removal
+//
+//        IDag d = IDag::from_vector(raw_input);
+//        ICitationGraph graph(d.get_root());
+//        for (const auto &p : raw_input) {
+//            if (!graph.exists(p.second))
+//                graph.create(p.second, p.first);
+//            else
+//                graph.add_citation(p.second, p.first);
+//        }
+//        int root = d.get_root();
+//        for (auto const&[key, val] : d.children) {
+//            if (key == root) continue;
+//            d.remove_vertex(key);
+//            graph.remove(key);
+//            IDag::assert_same(d, graph);
+//        }
+//
+//        //d.remove_vertex(2);
+//        std::cout << d;
+//}
 }
 
 

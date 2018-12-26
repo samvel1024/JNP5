@@ -2,7 +2,7 @@
 set -e
 
 testcase=$1
-DIRECTORY=graphs
+DIRECTORY=$2
 
 for i in $DIRECTORY/*.in; do
     echo "*** Test file $i ***"

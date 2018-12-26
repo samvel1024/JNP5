@@ -39,17 +39,14 @@ public:
     explicit Transaction() : failed(true) {};
 
     virtual ~Transaction() {
-        std::cout << to_be_removed.size() << std::endl;
         if (this->failed) {
             for (auto &i : to_be_removed) {
-                std::cout << "tick" << std::endl;
                 i.first.erase(i.second);
             }
         }
-        std::cout << "done" << std::endl;
     }
 
-    void commit() { failed = !failed; }
+    void commit() { failed = false; }
 
     void add(Container &c, typename Container::iterator iter) {
         to_be_removed.emplace_back(c, iter);
@@ -68,9 +65,9 @@ private:
     struct PtrComparator;
 
     using NodeId = typename Publication::id_type;
-    using ParentSet = std::set<std::weak_ptr<Node>, WeakComparator<Node>>;
+    using ParentSet = std::set<Node *>;
     using ChildSet = std::set<std::shared_ptr<Node>, PtrComparator<std::shared_ptr<Node>>>;
-    using NodeLookupMap = std::map<NodeId, std::shared_ptr<Node>>;
+    using NodeLookupMap = std::map<NodeId, std::weak_ptr<Node>>;
 
 
     template<typename T>
@@ -80,37 +77,40 @@ private:
         }
     };
 
-    template<typename T>
-    struct WeakComparator {
-        PtrComparator<std::shared_ptr<T>> w;
-
-        bool operator()(const std::weak_ptr<T> &lhs,
-                        const std::weak_ptr<T> &rhs) const {
-            return w.operator()(lhs.lock(), rhs.lock());
-        }
-    };
 
     class Node {
     private:
         Publication value;
         ParentSet parents;
         ChildSet children;
-        typename NodeLookupMap::iterator it;
+        typename NodeLookupMap::iterator iter;
+        NodeLookupMap &map;
         NodeId id;
 
     public:
-        explicit Node(NodeId id) : value(id), parents(), children(), id(id) {}
+        explicit Node(NodeId id, NodeLookupMap &m) :
+            value(id), parents(), children(), id(id), map(m) {}
 
 
         virtual ~Node() {
+            LOG(std::cout << "Destruction of node with id: " << id << endl);
+            for (auto *p: parents) {
+
+            }
+            children.clear();
+            map.erase(iter);
         }
 
-        typename ParentSet::iterator add_parent(const std::shared_ptr<Node> &ptr) {
-            return parents.emplace(std::weak_ptr<Node>(ptr)).first;
+        void set_lookup_iterator(typename NodeLookupMap::iterator iter) {
+            this->iter = iter;
         }
 
-        typename ChildSet::iterator add_child(const std::shared_ptr<Node> &ptr) {
-            return children.emplace(std::shared_ptr<Node>(ptr)).first;
+        typename ParentSet::iterator add_parent(Node *ptr) {
+            return parents.emplace(ptr).first;
+        }
+
+        typename ChildSet::iterator add_child(const std::shared_ptr<Node> ptr) {
+            return children.insert(ptr).first;
         }
 
         const Publication &get_publication() const noexcept { return value; }
@@ -124,8 +124,6 @@ private:
             os << "Node {value= " << &node.value << "}";
             return os;
         }
-
-        //virtual ~Node() { std::cout << "Destruction " << value.get_id() << std::endl; }
 
         bool operator<(const Node &rhs) const {
             return this->value.get_id() < rhs.value.get_id();
@@ -170,9 +168,11 @@ private:
 public:
 
     explicit CitationGraph(NodeId const &stem_id) {
-        publication_ids[stem_id] = std::make_shared<Node>(stem_id);
+        std::shared_ptr<Node> root = std::make_shared<Node>(stem_id, publication_ids);
+        auto iter = publication_ids.insert(publication_ids.begin(), std::make_pair(stem_id, root));
+        root->set_lookup_iterator(iter);
         this->source_id = stem_id;
-        this->source = publication_ids[stem_id];
+        this->source = root;
     }
 
     CitationGraph(CitationGraph<Publication> &&other) noexcept
@@ -201,7 +201,8 @@ public:
     }
 
     bool exists(NodeId const &id) const {
-        return publication_ids.find(id) != publication_ids.end();
+        auto iter = publication_ids.find(id);
+        return iter != publication_ids.end() && !(*iter).second.expired();
     }
 
     const Publication &operator[](NodeId const &id) const {
@@ -225,11 +226,11 @@ public:
         Transaction<ParentSet> p_trans;
         Transaction<NodeLookupMap> nl_trans;
 
-        auto added_iter = publication_ids.insert(
+        std::shared_ptr<Node> child = std::make_shared<Node>(id, publication_ids);
+        auto lookup_iterator = publication_ids.insert(
             publication_ids.begin(),
-            std::make_pair(id, std::shared_ptr<Node>(new Node(id))));
-        nl_trans.add(publication_ids, added_iter);
-        std::shared_ptr<Node> &child = (*added_iter).second;
+            std::make_pair(id, child));
+        nl_trans.add(publication_ids, lookup_iterator);
         for (NodeId parent_id : parent_ids) {
             if (parent_id == id) {
                 throw PublicationNotFound();
@@ -238,115 +239,62 @@ public:
             if (parent_iter == publication_ids.end()) {
                 throw PublicationNotFound();
             }
-            std::shared_ptr<Node> &parent = (*parent_iter).second;
+            std::shared_ptr<Node> parent = (*parent_iter).second.lock();
             auto c_iter = parent->add_child(child);
-            auto p_iter = child->add_parent(parent);
+            auto p_iter = child->add_parent(parent.get());
             c_trans.add(parent->get_child_set(), c_iter);
             p_trans.add(child->get_parent_set(), p_iter);
         }
 
+        child->set_lookup_iterator(lookup_iterator);
         nl_trans.commit();
         p_trans.commit();
         c_trans.commit();
+
     }
 
 
     void add_citation(NodeId const &child_id, NodeId const &parent_id) {
-        typename NodeLookupMap::iterator child_node = publication_ids.find(child_id);
-        typename NodeLookupMap::iterator par_node = publication_ids.find(parent_id);
-        if (child_node == publication_ids.end() ||
-            par_node == publication_ids.end() || child_id == parent_id) {
+        typename NodeLookupMap::iterator child_iter = publication_ids.find(child_id);
+        typename NodeLookupMap::iterator parent_iter = publication_ids.find(parent_id);
+        if (child_iter == publication_ids.end() ||
+            parent_iter == publication_ids.end() || child_id == parent_id) {
             throw PublicationNotFound();
         }
 
         Transaction<ChildSet> c_trans;
         Transaction<ParentSet> p_trans;
-        p_trans.add(child_node->second->get_parent_set(),
-                    child_node->second->add_parent(par_node->second));
-        c_trans.add(par_node->second->get_child_set(),
-                    par_node->second->add_child(child_node->second));
+
+        std::shared_ptr<Node> parent = parent_iter->second.lock();
+        std::shared_ptr<Node> child = child_iter->second.lock();
+        p_trans.add(child->get_parent_set(), child->add_parent(parent.get()));
+        c_trans.add(parent->get_child_set(), parent->add_child(child));
 
         c_trans.commit();
         p_trans.commit();
     }
 
-    template<typename T, typename U>
-    void DFS(std::map<Node *, int> &visited,
-             Transaction<U> &parent_set, Transaction<T> &node_lookup_map, std::shared_ptr<Node> node) {
-        if (visited[node.get()] == 0) {
-            node_lookup_map.add(publication_ids,
-                                publication_ids.find(node->get_publication().get_id()));
-            std::cout << "pub: " << node->get_publication().get_id() << std::endl;
-            visited[node.get()] = -1;
-            for (auto &child : node->get_child_set()) {
-                ParentSet &child_parent_set = child->get_parent_set();
-                std::cout << "child: " << child->get_publication().get_id() << std::endl;
-                parent_set.add(child_parent_set, child_parent_set.find(node));
-                DFS(visited, parent_set, node_lookup_map, child);
-            }
-        }
-    }
-
-    void DFS_count(std::map<Node *, int> &visited, Node *node) {
-        std::cout << node->get_parent_set().size() << *node << std::endl;
-        if (visited.find(node) == visited.end()) {
-            visited.insert(std::make_pair(node, node->get_parent_set().size()));
-/*            visited[node] =
-                    node->
-                    get_parent_set().size();*/
-        }
-        visited[node]--;
-        for (auto child : node->get_child_set()) {
-            DFS_count(visited, child.get());
-        }
-        std::cout << node->get_parent_set().size() << *node << std::endl;
-    }
-
-    void dfs(std::map<NodeId, int> &v, NodeId id, NodeId deleted) {
-        if (id == deleted || v[id] == 1) return;
-        v[id]++;
-        auto &children = publication_ids[id]->get_child_set();
-        for (auto &child :children) {
-            dfs(v, child->get_publication().get_id(), deleted);
-        }
-    }
-
-
     void remove(NodeId const &base_remove_id) {
-        if (publication_ids.find(base_remove_id) == publication_ids.end()) {
-            throw PublicationNotFound();
-        }
-        if (base_remove_id == source->get_publication().get_id()) {
-            throw TriedToRemoveRoot();
-        }
 
-        std::map<NodeId, int> visited;
-        dfs(visited, source_id, base_remove_id);
-
-        std::vector<typename NodeLookupMap::iterator> to_be_removed;
-        for (typename NodeLookupMap::iterator iter = publication_ids.begin(); iter != publication_ids.end(); iter++){
-            const NodeId &remove_id = (*(iter)).first;
-            if (visited[remove_id] == 1) continue;
-            // Exception can be thrown from here
-            to_be_removed.push_back(publication_ids.find(remove_id));
-        }
-
-        for(typename NodeLookupMap::iterator i:to_be_removed){
-            publication_ids.erase(i); // No exception expected from here
-        }
 
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CitationGraph &cg) {
         for (auto &pair : cg.publication_ids) {
+            std::shared_ptr<Node> node = (pair.second.lock());
             os << "Children of " << pair.first << ": ";
-            for (auto const &c : pair.second->get_child_set()) {
+            for (auto const &c : node->get_child_set()) {
                 os << c->get_publication().get_id() << " ";
             }
             os << std::endl;
             os << "Parents of " << pair.first << ": ";
-            for (auto const &p: pair.second->get_parent_set()) {
-                os << p.lock()->get_publication().get_id() << " ";
+            std::vector<NodeId> nodes;
+            for (auto const &p: node->get_parent_set()) {
+                nodes.push_back(p->get_publication().get_id());
+            }
+            std::sort(nodes.begin(), nodes.end());
+            for(auto const &p: nodes){
+                os << p << " ";
             }
             os << std::endl;
         }
